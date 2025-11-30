@@ -1,0 +1,53 @@
+# Arvis .gitignore
+
+# Environment
+.env
+.venv/
+venv/
+env/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets
+*.pem
+*.key
+
+# Spotify cache
+.cache-*
+
+# Audio recordings (privacy)
+recordings/
+*.wav
+*.mp3
+
+# Model weights (if using local models)
+models/
+*.bin
+*.onnx
+
