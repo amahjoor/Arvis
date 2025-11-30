@@ -17,6 +17,8 @@ from loguru import logger
 
 from src.config import DEBUG, MOCK_HARDWARE
 from src.core import EventBus, StateManager, RoomState
+from src.agents.wake_word import WakeWordDetector
+from src.agents.voice_agent import VoiceAgent
 from src.utils.logging import setup_logging
 
 
@@ -44,6 +46,16 @@ class Arvis:
         self.event_bus = EventBus()
         self.state_manager = StateManager(self.event_bus)
         
+        # Agents
+        self.wake_word_detector = WakeWordDetector(
+            event_bus=self.event_bus,
+            mock_mode=mock_hardware,
+        )
+        self.voice_agent = VoiceAgent(
+            event_bus=self.event_bus,
+            mock_mode=mock_hardware,
+        )
+        
         logger.info(f"Arvis initialized (mock_hardware={mock_hardware}, debug={debug})")
     
     async def start(self) -> None:
@@ -53,8 +65,14 @@ class Arvis:
         self._running = True
         self._shutdown_event = asyncio.Event()
         
-        # Subscribe to state changes for logging
+        # Subscribe to events for logging
         self.event_bus.subscribe("room.state_changed", self._on_state_changed)
+        self.event_bus.subscribe("wake_word.detected", self._on_wake_word)
+        self.event_bus.subscribe("voice.recording_complete", self._on_recording_complete)
+        
+        # Start agents
+        await self.wake_word_detector.start()
+        await self.voice_agent.start()
         
         logger.info("=" * 50)
         logger.info("  Arvis Room Intelligence System")
@@ -62,6 +80,7 @@ class Arvis:
         logger.info(f"  Mode: {'Mock' if self.mock_hardware else 'Hardware'}")
         logger.info(f"  Debug: {self.debug}")
         logger.info(f"  State: {self.state_manager.state.value}")
+        logger.info(f"  Wake Word: Listening for 'Arvis'")
         logger.info("=" * 50)
         logger.info("Arvis is ready. Press Ctrl+C to stop.")
         
@@ -74,7 +93,11 @@ class Arvis:
         
         self._running = False
         
-        # Clean up components
+        # Stop agents
+        await self.wake_word_detector.stop()
+        await self.voice_agent.stop()
+        
+        # Clean up core components
         self.event_bus.clear()
         self.state_manager.reset()
         
@@ -88,6 +111,27 @@ class Arvis:
         old_state = event.payload.get("old_state")
         new_state = event.payload.get("new_state")
         logger.info(f"Room state: {old_state} → {new_state}")
+    
+    async def _on_wake_word(self, event) -> None:
+        """Handle wake word detection."""
+        logger.info("🎤 Wake word detected! Listening for command...")
+    
+    async def _on_recording_complete(self, event) -> None:
+        """Handle completed voice recording."""
+        duration = event.payload.get("duration", 0)
+        size = len(event.payload.get("audio_bytes", b""))
+        logger.info(f"📝 Recording complete: {duration:.2f}s, {size} bytes")
+        # Next story (1.3) will handle STT processing here
+    
+    async def trigger_wake_word(self) -> None:
+        """
+        Manually trigger wake word detection.
+        Useful for testing in mock mode.
+        """
+        if self.mock_hardware:
+            await self.wake_word_detector.trigger_mock_detection()
+        else:
+            logger.warning("Manual trigger only works in mock mode")
 
 
 def parse_args() -> argparse.Namespace:
@@ -150,4 +194,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

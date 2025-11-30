@@ -58,6 +58,11 @@ SILENCE_DURATION = 3.0      # Seconds of silence before stopping recording
 WAKE_WORD = "arvis"
 WAKE_WORD_SENSITIVITY = 0.5  # 0.0-1.0, balanced detection
 
+# Custom wake word model path (download from Picovoice Console)
+# Set to None to use built-in "jarvis" keyword
+# NOTE: Italian model requires Italian language model file - using Jarvis for now
+WAKE_WORD_MODEL_PATH = None  # ASSETS_DIR / "wake_words" / "Arvis_it_mac_v3_0_0.ppn"
+
 # =============================================================================
 # Presence Detection (PIR Sensor)
 # =============================================================================
