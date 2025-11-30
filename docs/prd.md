@@ -175,6 +175,15 @@ These effects require clarity and directional sound, not bass or volume. Smaller
 * **Sleep mode override**: User can say "Arvis, I'm still awake" to cancel automatic sleep mode transition
 * **Time-of-day awareness**: ~8pm+ is sleep-likely window (soft context hint for detection confidence)
 
+#### Multi-Person Handling
+
+* **Design assumption**: System optimized for single-user operation
+* **Sleep priority rule**: If anyone is detected sleeping in bed zone → room enters SLEEP mode
+  * Lights dim regardless of other activity in room
+  * "Respects the sleeper" — awake person can use voice commands but room stays dim
+* **Quiet Hours mode**: For guests, say "Arvis, quiet mode" to disable automatic behaviors
+* **Future enhancement**: Person counting and primary user tracking (not in MVP)
+
 ### **5.3 Audio Routing**
 
 * Pi → USB DAC → Mini Amp → Corner speakers

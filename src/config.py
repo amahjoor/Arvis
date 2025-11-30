@@ -2,26 +2,40 @@
 Arvis Configuration Module
 
 Paths, thresholds, API keys, and room layout zones.
+All configuration is centralized here for easy modification.
 """
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
+
+# =============================================================================
+# Debug & Mock Settings
+# =============================================================================
+DEBUG = os.getenv("ARVIS_DEBUG", "false").lower() == "true"
+MOCK_HARDWARE = os.getenv("ARVIS_MOCK_HARDWARE", "true").lower() == "true"
 
 # =============================================================================
 # Paths
 # =============================================================================
 PROJECT_ROOT = Path(__file__).parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
 ASSETS_DIR = PROJECT_ROOT / "assets"
-FX_DIR = ASSETS_DIR / "fx"
+SOUNDS_DIR = ASSETS_DIR / "sounds"
 LOGS_DIR = PROJECT_ROOT / "logs"
+
+# Ensure directories exist
+LOGS_DIR.mkdir(exist_ok=True)
+SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # API Keys (loaded from .env)
 # =============================================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+PORCUPINE_ACCESS_KEY = os.getenv("PORCUPINE_ACCESS_KEY", "")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
@@ -29,27 +43,29 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/
 # =============================================================================
 # Audio Settings
 # =============================================================================
-SAMPLE_RATE = 16000  # 16kHz for speech
-CHANNELS = 1
-CHUNK_SIZE = 1024
+SAMPLE_RATE = 16000  # 16kHz for speech recognition
+CHANNELS = 1         # Mono
+CHUNK_SIZE = 1024    # Audio buffer size
 
-# Wake word
-WAKE_WORD = "arvis"
-
-# =============================================================================
-# Presence Detection
-# =============================================================================
-# PIR sensor settings
-PIR_GPIO_PIN = 17  # BCM pin number
-ROOM_EMPTY_TIMEOUT_MINUTES = 10  # Minutes of no motion before room is EMPTY
+# Recording settings
+MAX_RECORDING_SECONDS = 10  # Max recording duration after wake word
+SILENCE_THRESHOLD = 500     # Energy threshold for silence detection
+SILENCE_DURATION = 3.0      # Seconds of silence before stopping recording
 
 # =============================================================================
 # Wake Word Detection
 # =============================================================================
+WAKE_WORD = "arvis"
 WAKE_WORD_SENSITIVITY = 0.5  # 0.0-1.0, balanced detection
 
 # =============================================================================
-# Vision Settings
+# Presence Detection (PIR Sensor)
+# =============================================================================
+PIR_GPIO_PIN = 17  # BCM pin number
+ROOM_EMPTY_TIMEOUT_MINUTES = 10  # Minutes of no motion before room is EMPTY
+
+# =============================================================================
+# Vision Settings (Camera)
 # =============================================================================
 CAMERA_INDEX = 0  # Default camera
 CAMERA_WIDTH = 640
@@ -70,38 +86,13 @@ ZONES = {
 # =============================================================================
 # LED Settings
 # =============================================================================
-LED_COUNT = 60
-LED_PIN = 18  # GPIO pin (PWM)
-LED_BRIGHTNESS = 255
+LED_COUNT = 300       # Total LEDs in strip (5m * 60 LED/m)
+LED_PIN = 18          # GPIO pin (PWM)
+LED_BRIGHTNESS = 255  # Max brightness (0-255)
+LED_FREQ_HZ = 800000  # LED signal frequency
 
 # =============================================================================
-# Scenes
-# =============================================================================
-SCENES = {
-    "entry": {
-        "lights": {"state": "on", "color": [255, 180, 100], "brightness": 200},
-        "fx": "welcome",
-        "voice": "Welcome back, Arman.",
-    },
-    "focus": {
-        "lights": {"state": "on", "color": [255, 255, 255], "brightness": 255},
-        "spotify_playlist": "focus_playlist_id",
-    },
-    "cozy": {
-        "lights": {"state": "on", "color": [255, 120, 50], "brightness": 150},
-    },
-    "sleep": {
-        "lights": {"state": "off"},
-        "fx": "sleep_chime",
-    },
-    "wake": {
-        "lights": {"state": "on", "color": [255, 200, 150], "brightness": 100},
-        "fx": "wake_tone",
-    },
-}
-
-# =============================================================================
-# LLM Settings
+# LLM / AI Settings
 # =============================================================================
 LLM_MODEL = "gpt-4o-mini"
 STT_MODEL = "whisper-1"
@@ -114,17 +105,65 @@ PIR_RESPONSE_TARGET = 0.5
 VISION_ALARM_TARGET = 1.0
 
 # =============================================================================
-# Room State
+# Scene Definitions
 # =============================================================================
-class RoomState:
-    EMPTY = "EMPTY"
-    OCCUPIED = "OCCUPIED"
-    SLEEP = "SLEEP"
-    WAKE = "WAKE"
+# Colors in hex format
+SCENES = {
+    "welcome": {
+        "color": "#FFD700",      # Gold
+        "brightness": 0.7,
+        "animation": "golden_shimmer",
+        "voice": "Welcome back, Arman.",
+    },
+    "focus": {
+        "color": "#FFFFFF",      # Cool white
+        "brightness": 1.0,
+        "animation": None,
+        "voice": "Focus mode.",
+    },
+    "night": {
+        "color": "#FFB347",      # Warm amber
+        "brightness": 0.3,
+        "animation": None,
+        "voice": "Night mode.",
+    },
+    "sleep": {
+        "color": "#000000",      # Off
+        "brightness": 0.0,
+        "animation": "fade_out",
+        "voice": None,           # Silent transition
+    },
+    "wake": {
+        "color": "#FFECD2",      # Warm sunrise
+        "brightness": 0.5,
+        "animation": "sunrise",
+        "voice": "Good morning, Arman.",
+    },
+    "exit": {
+        "color": "#000000",      # Off
+        "brightness": 0.0,
+        "animation": "fade_out",
+        "voice": "Goodbye.",
+    },
+}
 
+# =============================================================================
+# Error Messages (Arvis persona - minimal, calm)
+# =============================================================================
+ERROR_MESSAGES = {
+    "not_understood": "I didn't catch that.",
+    "offline": "I'm offline.",
+    "not_supported": "I can't do that.",
+    "error": "Something went wrong.",
+    "back_online": "I'm back online.",
+}
+
+# =============================================================================
+# Posture Detection
+# =============================================================================
 class Posture:
+    """Posture states detected by vision system."""
     LYING = "lying"
     SITTING = "sitting"
     STANDING = "standing"
     UNKNOWN = "unknown"
-
