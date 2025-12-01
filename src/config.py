@@ -35,7 +35,7 @@ SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
 # API Keys (loaded from .env)
 # =============================================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-PORCUPINE_ACCESS_KEY = os.getenv("PORCUPINE_ACCESS_KEY", "")
+# PORCUPINE_ACCESS_KEY = os.getenv("PORCUPINE_ACCESS_KEY", "")  # Not needed - using OpenWakeWord
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
@@ -53,15 +53,15 @@ SILENCE_THRESHOLD = 500     # Energy threshold for silence detection
 SILENCE_DURATION = 3.0      # Seconds of silence before stopping recording
 
 # =============================================================================
-# Wake Word Detection
+# Wake Word Detection (OpenWakeWord)
 # =============================================================================
 WAKE_WORD = "arvis"
-WAKE_WORD_SENSITIVITY = 0.5  # 0.0-1.0, balanced detection
+WAKE_WORD_SENSITIVITY = 0.5  # 0.0-1.0, threshold for detection
 
-# Custom wake word model path (download from Picovoice Console)
-# Set to None to use built-in "jarvis" keyword
-# NOTE: Italian model requires Italian language model file - using Jarvis for now
-WAKE_WORD_MODEL_PATH = None  # ASSETS_DIR / "wake_words" / "Arvis_it_mac_v3_0_0.ppn"
+# Custom wake word model path (.onnx file)
+# Trained via OpenWakeWord Colab notebook
+# Set to None to use pre-trained "hey_jarvis" model
+WAKE_WORD_MODEL_PATH = ASSETS_DIR / "wake_words" / "arvis.onnx"
 
 # =============================================================================
 # Presence Detection (PIR Sensor)

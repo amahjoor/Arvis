@@ -46,8 +46,11 @@ recordings/
 *.wav
 *.mp3
 
-# Model weights (if using local models)
+# Model weights (large files)
 models/
 *.bin
+
+# ONNX models (except custom wake word)
 *.onnx
+!assets/wake_words/arvis.onnx
 
