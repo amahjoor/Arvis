@@ -16,9 +16,11 @@ from typing import Optional
 from loguru import logger
 
 from src.config import DEBUG, MOCK_HARDWARE
-from src.core import EventBus, StateManager, RoomState
+from src.core import EventBus, StateManager, RoomState, IntentRouter, HandlerContext
 from src.agents.wake_word import WakeWordDetector
 from src.agents.voice_agent import VoiceAgent
+from src.controllers.led_controller import LEDController
+from src.intents.lights import register_light_handlers
 from src.utils.logging import setup_logging
 
 
@@ -46,6 +48,9 @@ class Arvis:
         self.event_bus = EventBus()
         self.state_manager = StateManager(self.event_bus)
         
+        # Controllers
+        self.led_controller = LEDController(mock_mode=mock_hardware)
+        
         # Agents
         self.wake_word_detector = WakeWordDetector(
             event_bus=self.event_bus,
@@ -56,6 +61,21 @@ class Arvis:
             state_manager=self.state_manager,
             mock_mode=mock_hardware,
         )
+        
+        # Intent routing
+        self.handler_context = HandlerContext(
+            led_controller=self.led_controller,
+            audio_controller=self.voice_agent.audio_controller,
+            state_manager=self.state_manager,
+            event_bus=self.event_bus,
+        )
+        self.intent_router = IntentRouter(
+            event_bus=self.event_bus,
+            context=self.handler_context,
+        )
+        
+        # Register intent handlers
+        register_light_handlers(self.intent_router)
         
         logger.info(f"Arvis initialized (mock_hardware={mock_hardware}, debug={debug})")
     
@@ -72,9 +92,10 @@ class Arvis:
         self.event_bus.subscribe("voice.recording_complete", self._on_recording_complete)
         self.event_bus.subscribe("voice.command", self._on_voice_command)
         
-        # Start agents
+        # Start components
         await self.wake_word_detector.start()
         await self.voice_agent.start()
+        await self.intent_router.start()
         
         logger.info("=" * 50)
         logger.info("  Arvis Room Intelligence System")
@@ -83,6 +104,7 @@ class Arvis:
         logger.info(f"  Debug: {self.debug}")
         logger.info(f"  State: {self.state_manager.state.value}")
         logger.info(f"  Wake Word: Listening for 'Arvis'")
+        logger.info(f"  Intents: {self.intent_router.registered_actions}")
         logger.info("=" * 50)
         logger.info("Arvis is ready. Press Ctrl+C to stop.")
         
@@ -95,7 +117,8 @@ class Arvis:
         
         self._running = False
         
-        # Stop agents
+        # Stop components
+        await self.intent_router.stop()
         await self.wake_word_detector.stop()
         await self.voice_agent.stop()
         
@@ -117,6 +140,9 @@ class Arvis:
     async def _on_wake_word(self, event) -> None:
         """Handle wake word detection."""
         logger.info("🎤 Wake word detected! Listening for command...")
+        
+        # Trigger listening animation
+        self.led_controller.animate_listening()
     
     async def _on_recording_complete(self, event) -> None:
         """Handle completed voice recording."""
@@ -136,8 +162,7 @@ class Arvis:
         
         logger.info(f"🎯 Voice command: '{text}' → {action} (params={params})")
         logger.info(f"⏱️  Latency: STT={latency.get('stt', 0):.2f}s, LLM={latency.get('llm', 0):.2f}s, Total={total_time:.2f}s")
-        
-        # TODO: Story 1.4 will route this to ActionExecutor
+        # IntentRouter handles routing to handlers
     
     async def trigger_wake_word(self) -> None:
         """
