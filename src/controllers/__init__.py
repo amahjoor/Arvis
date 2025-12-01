@@ -1,3 +1,6 @@
 # Arvis Controllers Module
-# Hardware output controllers (LED, Audio)
+# Hardware and output controllers
 
+from src.controllers.audio_controller import AudioController
+
+__all__ = ["AudioController"]

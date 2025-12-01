@@ -53,6 +53,7 @@ class Arvis:
         )
         self.voice_agent = VoiceAgent(
             event_bus=self.event_bus,
+            state_manager=self.state_manager,
             mock_mode=mock_hardware,
         )
         
@@ -69,6 +70,7 @@ class Arvis:
         self.event_bus.subscribe("room.state_changed", self._on_state_changed)
         self.event_bus.subscribe("wake_word.detected", self._on_wake_word)
         self.event_bus.subscribe("voice.recording_complete", self._on_recording_complete)
+        self.event_bus.subscribe("voice.command", self._on_voice_command)
         
         # Start agents
         await self.wake_word_detector.start()
@@ -121,7 +123,21 @@ class Arvis:
         duration = event.payload.get("duration", 0)
         size = len(event.payload.get("audio_bytes", b""))
         logger.info(f"📝 Recording complete: {duration:.2f}s, {size} bytes")
-        # Next story (1.3) will handle STT processing here
+    
+    async def _on_voice_command(self, event) -> None:
+        """Handle processed voice command (after STT/LLM)."""
+        text = event.payload.get("text", "")
+        intent = event.payload.get("intent", {})
+        latency = event.payload.get("latency", {})
+        
+        action = intent.get("action", "unknown")
+        params = intent.get("params", {})
+        total_time = latency.get("total", 0)
+        
+        logger.info(f"🎯 Voice command: '{text}' → {action} (params={params})")
+        logger.info(f"⏱️  Latency: STT={latency.get('stt', 0):.2f}s, LLM={latency.get('llm', 0):.2f}s, Total={total_time:.2f}s")
+        
+        # TODO: Story 1.4 will route this to ActionExecutor
     
     async def trigger_wake_word(self) -> None:
         """

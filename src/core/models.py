@@ -63,12 +63,14 @@ class Intent:
         params: Action-specific parameters
         priority: Higher priority intents are executed first (default: 0)
         source: What generated this intent (e.g., "voice", "presence", "vision")
+        raw_text: Original transcribed text (for voice intents)
     """
     
     action: str
     params: dict = field(default_factory=dict)
     priority: int = 0
     source: str = "unknown"
+    raw_text: Optional[str] = None
     
     def __post_init__(self):
         """Ensure params is a dict."""
