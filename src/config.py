@@ -66,7 +66,8 @@ WAKE_WORD_MODEL_PATH = ASSETS_DIR / "wake_words" / "arvis.onnx"
 # =============================================================================
 # Presence Detection (PIR Sensor)
 # =============================================================================
-PIR_GPIO_PIN = 17  # BCM pin number
+PIR_GPIO_PIN = 17  # BCM pin number (GPIO17 = physical pin 11)
+PIR_DEBOUNCE_SECONDS = 2.0  # Minimum time between motion events
 ROOM_EMPTY_TIMEOUT_MINUTES = 10  # Minutes of no motion before room is EMPTY
 
 # =============================================================================

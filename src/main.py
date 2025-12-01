@@ -20,6 +20,7 @@ from src.core import EventBus, StateManager, RoomState, IntentRouter, HandlerCon
 from src.agents.wake_word import WakeWordDetector
 from src.agents.voice_agent import VoiceAgent
 from src.controllers.led_controller import LEDController
+from src.sensors.pir_sensor import PIRSensor
 from src.intents.lights import register_light_handlers
 from src.utils.logging import setup_logging
 
@@ -50,6 +51,12 @@ class Arvis:
         
         # Controllers
         self.led_controller = LEDController(mock_mode=mock_hardware)
+        
+        # Sensors
+        self.pir_sensor = PIRSensor(
+            event_bus=self.event_bus,
+            mock_mode=mock_hardware,
+        )
         
         # Agents
         self.wake_word_detector = WakeWordDetector(
@@ -91,8 +98,10 @@ class Arvis:
         self.event_bus.subscribe("wake_word.detected", self._on_wake_word)
         self.event_bus.subscribe("voice.recording_complete", self._on_recording_complete)
         self.event_bus.subscribe("voice.command", self._on_voice_command)
+        self.event_bus.subscribe("presence.motion_detected", self._on_motion_detected)
         
         # Start components
+        await self.pir_sensor.start()
         await self.wake_word_detector.start()
         await self.voice_agent.start()
         await self.intent_router.start()
@@ -121,6 +130,7 @@ class Arvis:
         await self.intent_router.stop()
         await self.wake_word_detector.stop()
         await self.voice_agent.stop()
+        await self.pir_sensor.stop()
         
         # Clean up core components
         self.event_bus.clear()
@@ -164,6 +174,12 @@ class Arvis:
         logger.info(f"⏱️  Latency: STT={latency.get('stt', 0):.2f}s, LLM={latency.get('llm', 0):.2f}s, Total={total_time:.2f}s")
         # IntentRouter handles routing to handlers
     
+    async def _on_motion_detected(self, event) -> None:
+        """Handle PIR motion detection."""
+        timestamp = event.payload.get("timestamp", "")
+        logger.info(f"📡 Motion detected at {timestamp}")
+        # PresenceAgent (Story 2.2) will handle state transitions
+    
     async def trigger_wake_word(self) -> None:
         """
         Manually trigger wake word detection.
@@ -173,6 +189,13 @@ class Arvis:
             await self.wake_word_detector.trigger_mock_detection()
         else:
             logger.warning("Manual trigger only works in mock mode")
+    
+    async def trigger_motion(self) -> None:
+        """
+        Manually trigger PIR motion detection.
+        Useful for testing without hardware.
+        """
+        await self.pir_sensor.trigger_mock_motion()
 
 
 def parse_args() -> argparse.Namespace:
