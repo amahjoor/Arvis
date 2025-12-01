@@ -19,6 +19,7 @@ from src.config import DEBUG, MOCK_HARDWARE
 from src.core import EventBus, StateManager, RoomState, IntentRouter, HandlerContext
 from src.agents.wake_word import WakeWordDetector
 from src.agents.voice_agent import VoiceAgent
+from src.agents.presence_agent import PresenceAgent
 from src.controllers.led_controller import LEDController
 from src.sensors.pir_sensor import PIRSensor
 from src.intents.lights import register_light_handlers
@@ -68,6 +69,10 @@ class Arvis:
             state_manager=self.state_manager,
             mock_mode=mock_hardware,
         )
+        self.presence_agent = PresenceAgent(
+            event_bus=self.event_bus,
+            state_manager=self.state_manager,
+        )
         
         # Intent routing
         self.handler_context = HandlerContext(
@@ -99,9 +104,12 @@ class Arvis:
         self.event_bus.subscribe("voice.recording_complete", self._on_recording_complete)
         self.event_bus.subscribe("voice.command", self._on_voice_command)
         self.event_bus.subscribe("presence.motion_detected", self._on_motion_detected)
+        self.event_bus.subscribe("presence.entry_detected", self._on_entry_detected)
+        self.event_bus.subscribe("presence.exit_detected", self._on_exit_detected)
         
         # Start components
         await self.pir_sensor.start()
+        await self.presence_agent.start()
         await self.wake_word_detector.start()
         await self.voice_agent.start()
         await self.intent_router.start()
@@ -130,6 +138,7 @@ class Arvis:
         await self.intent_router.stop()
         await self.wake_word_detector.stop()
         await self.voice_agent.stop()
+        await self.presence_agent.stop()
         await self.pir_sensor.stop()
         
         # Clean up core components
@@ -178,7 +187,17 @@ class Arvis:
         """Handle PIR motion detection."""
         timestamp = event.payload.get("timestamp", "")
         logger.info(f"📡 Motion detected at {timestamp}")
-        # PresenceAgent (Story 2.2) will handle state transitions
+        # PresenceAgent handles state transitions
+    
+    async def _on_entry_detected(self, event) -> None:
+        """Handle room entry (EMPTY → OCCUPIED)."""
+        logger.info("🚪 Entry detected! Welcome scene will trigger (Story 2.3)")
+        # Entry scene handler will be added in Story 2.3
+    
+    async def _on_exit_detected(self, event) -> None:
+        """Handle room exit (OCCUPIED → EMPTY after timeout)."""
+        timeout = event.payload.get("timeout_minutes", 0)
+        logger.info(f"🚪 Exit detected! (no motion for {timeout:.0f}min) Goodbye scene will trigger (Story 2.4)")
     
     async def trigger_wake_word(self) -> None:
         """
@@ -196,6 +215,13 @@ class Arvis:
         Useful for testing without hardware.
         """
         await self.pir_sensor.trigger_mock_motion()
+    
+    async def trigger_exit(self) -> None:
+        """
+        Manually trigger room exit (for testing).
+        Bypasses the timeout wait.
+        """
+        await self.presence_agent.trigger_mock_exit()
 
 
 def parse_args() -> argparse.Namespace:
