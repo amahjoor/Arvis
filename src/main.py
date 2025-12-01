@@ -23,6 +23,7 @@ from src.agents.presence_agent import PresenceAgent
 from src.controllers.led_controller import LEDController
 from src.sensors.pir_sensor import PIRSensor
 from src.intents.lights import register_light_handlers
+from src.intents.presence import register_presence_handlers
 from src.utils.logging import setup_logging
 
 
@@ -88,6 +89,7 @@ class Arvis:
         
         # Register intent handlers
         register_light_handlers(self.intent_router)
+        register_presence_handlers(self.intent_router)
         
         logger.info(f"Arvis initialized (mock_hardware={mock_hardware}, debug={debug})")
     
@@ -191,13 +193,51 @@ class Arvis:
     
     async def _on_entry_detected(self, event) -> None:
         """Handle room entry (EMPTY → OCCUPIED)."""
-        logger.info("🚪 Entry detected! Welcome scene will trigger (Story 2.3)")
-        # Entry scene handler will be added in Story 2.3
+        logger.info("🚪 Entry detected! Triggering welcome scene...")
+        
+        # Create and publish a voice.command event to trigger the handler
+        from src.core.models import Event, Intent
+        
+        intent = Intent(
+            action="presence.entry",
+            params={},
+            source="presence_agent",
+            raw_text="[auto] entry detected",
+        )
+        
+        await self.event_bus.publish(Event(
+            type="voice.command",
+            payload={
+                "text": "[entry detected]",
+                "intent": intent.__dict__,
+                "latency": {"total": 0},
+            },
+            source="presence_agent",
+        ))
     
     async def _on_exit_detected(self, event) -> None:
         """Handle room exit (OCCUPIED → EMPTY after timeout)."""
         timeout = event.payload.get("timeout_minutes", 0)
-        logger.info(f"🚪 Exit detected! (no motion for {timeout:.0f}min) Goodbye scene will trigger (Story 2.4)")
+        logger.info(f"🚪 Exit detected! (no motion for {timeout:.0f}min) Triggering goodbye scene...")
+        
+        from src.core.models import Event, Intent
+        
+        intent = Intent(
+            action="presence.exit",
+            params={"timeout_minutes": timeout},
+            source="presence_agent",
+            raw_text="[auto] exit detected",
+        )
+        
+        await self.event_bus.publish(Event(
+            type="voice.command",
+            payload={
+                "text": "[exit detected]",
+                "intent": intent.__dict__,
+                "latency": {"total": 0},
+            },
+            source="presence_agent",
+        ))
     
     async def trigger_wake_word(self) -> None:
         """

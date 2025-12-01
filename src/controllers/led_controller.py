@@ -4,6 +4,7 @@ LED Controller for WS2812B addressable LED strips.
 Controls lighting via GPIO on Raspberry Pi, with mock mode for development.
 """
 
+import math
 from typing import Optional, Tuple
 from loguru import logger
 
@@ -292,6 +293,55 @@ class LEDController:
         
         # TODO: Implement on Pi - quick green flash
         pass
+    
+    def animate_golden_shimmer(self, duration: float = 3.0) -> None:
+        """
+        Play golden shimmer animation for welcome scene.
+        
+        Warm gold pulse that says "welcome home".
+        Color: #FFD700 (gold) with brightness oscillation.
+        """
+        if self._mock_mode:
+            logger.info(f"✨ [MOCK LED] Golden shimmer animation ({duration}s)")
+            return
+        
+        import time
+        import threading
+        
+        def shimmer():
+            try:
+                from rpi_ws281x import Color
+                
+                # Gold color
+                base_r, base_g, base_b = 255, 215, 0
+                
+                steps = int(duration * 10)  # 10 steps per second
+                
+                for i in range(steps):
+                    # Oscillate brightness 0.4 → 1.0 → 0.4
+                    phase = (i / steps) * 2 * 3.14159
+                    brightness = 0.4 + 0.6 * abs(math.sin(phase * 2))
+                    
+                    r = int(base_r * brightness)
+                    g = int(base_g * brightness)
+                    b = int(base_b * brightness)
+                    
+                    color = Color(r, g, b)
+                    for j in range(self._strip.numPixels()):
+                        self._strip.setPixelColor(j, color)
+                    self._strip.show()
+                    time.sleep(0.1)
+                
+                # End with warm glow
+                color = Color(int(base_r * 0.7), int(base_g * 0.7), int(base_b * 0.7))
+                for j in range(self._strip.numPixels()):
+                    self._strip.setPixelColor(j, color)
+                self._strip.show()
+                
+            except Exception as e:
+                logger.error(f"Golden shimmer error: {e}")
+        
+        threading.Thread(target=shimmer, daemon=True).start()
     
     @property
     def is_on(self) -> bool:
