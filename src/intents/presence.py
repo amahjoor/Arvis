@@ -41,20 +41,16 @@ def register_presence_handlers(router: IntentRouter) -> None:
     @router.handler("presence.exit")
     async def handle_exit(intent: Intent, ctx: HandlerContext) -> None:
         """
-        Handle room exit - play goodbye scene.
+        Handle room exit - fade out lights silently.
         
-        - Voice: "Goodbye."
-        - Fade out LED animation
+        No voice (user already left), just fade out LEDs.
         """
-        logger.info("🚪 Handling presence.exit - Goodbye scene")
+        logger.info("🚪 Handling presence.exit - Silent fade out")
         
-        # Voice farewell first (short)
-        ctx.audio_controller.say("Goodbye.")
-        
-        # Then fade out lights
+        # Just fade out lights (user is already gone, no point saying goodbye)
         ctx.led_controller.animate_fade_out(duration=2.0)
         
-        logger.info("✅ Goodbye scene complete")
+        logger.info("✅ Exit scene complete (lights faded)")
     
     handler_count = 2
     logger.info(f"Registered {handler_count} presence handlers")
