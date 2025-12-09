@@ -55,9 +55,9 @@ async def test_smart_plug_controller():
         print("🏗️  Initializing SmartPlugController...")
         controller = SmartPlugController(mock_mode=False)
 
-        # Wait a bit for discovery to complete
+        # Wait a bit for discovery to complete (discovery can take 5-10 seconds)
         print("⏳ Waiting for device discovery...")
-        await asyncio.sleep(3)
+        await asyncio.sleep(8)
 
         devices = controller.list_devices()
         print(f"📋 Controller found {len(devices)} device(s): {devices}")

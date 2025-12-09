@@ -22,7 +22,8 @@ def register_device_handlers(router: IntentRouter) -> None:
     @router.handler("device.on")
     async def handle_device_on(intent: Intent, ctx: HandlerContext) -> None:
         """Handle 'turn on [device]' command."""
-        device_id = intent.params.get("device", "").lower()
+        # Normalize device name: lowercase, remove hyphens/spaces, convert to underscores
+        device_id = intent.params.get("device", "").lower().replace("-", "").replace(" ", "_")
 
         logger.info(f"Handling device.on intent: {device_id}")
 
@@ -45,7 +46,8 @@ def register_device_handlers(router: IntentRouter) -> None:
     @router.handler("device.off")
     async def handle_device_off(intent: Intent, ctx: HandlerContext) -> None:
         """Handle 'turn off [device]' command."""
-        device_id = intent.params.get("device", "").lower()
+        # Normalize device name: lowercase, remove hyphens/spaces, convert to underscores
+        device_id = intent.params.get("device", "").lower().replace("-", "").replace(" ", "_")
 
         logger.info(f"Handling device.off intent: {device_id}")
 
@@ -68,7 +70,8 @@ def register_device_handlers(router: IntentRouter) -> None:
     @router.handler("device.status")
     async def handle_device_status(intent: Intent, ctx: HandlerContext) -> None:
         """Handle 'is [device] on' command."""
-        device_id = intent.params.get("device", "").lower()
+        # Normalize device name: lowercase, remove hyphens/spaces, convert to underscores
+        device_id = intent.params.get("device", "").lower().replace("-", "").replace(" ", "_")
 
         if not device_id:
             await _say(ctx, "Which device?")

@@ -108,6 +108,10 @@ class WakeWordDetector:
             import openwakeword
             from openwakeword.model import Model
             
+            # Always download preprocessing models first (needed even for custom wake words)
+            logger.info("Downloading OpenWakeWord preprocessing models (if needed)...")
+            openwakeword.utils.download_models()
+            
             # Check for custom model or use default
             if WAKE_WORD_MODEL_PATH and Path(WAKE_WORD_MODEL_PATH).exists():
                 logger.info(f"Loading custom wake word model: {WAKE_WORD_MODEL_PATH}")
@@ -118,9 +122,6 @@ class WakeWordDetector:
             else:
                 # Use pre-trained model - "hey_jarvis" is closest to "Arvis"
                 logger.info("Loading pre-trained 'hey_jarvis' model (say 'Hey Jarvis')")
-                
-                # Download pre-trained models on first run
-                openwakeword.utils.download_models()
                 
                 self._oww_model = Model(
                     wakeword_models=["hey_jarvis_v0.1"],

@@ -1,4 +1,8 @@
 # Arvis Room Intelligence System - Python Dependencies
+#
+# Python Version Requirement: 3.9 - 3.12
+# MediaPipe and other dependencies require Python <= 3.12
+# Recommended: Python 3.12 (highest supported version)
 
 # =============================================================================
 # Core
@@ -23,6 +27,7 @@ httpx>=0.25.0
 # Wake Word Detection
 # =============================================================================
 pvporcupine>=3.0.0
+openwakeword>=0.5.0
 
 # =============================================================================
 # Vision / Camera (Phase 3)

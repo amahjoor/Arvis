@@ -40,22 +40,72 @@ class SmartPlugController:
     async def _discover_plugs(self) -> None:
         """Discover Kasa plugs on the network."""
         try:
-            from kasa import SmartPlug, Discover
+            from kasa import SmartPlug, Discover, SmartDevice
 
             logger.info("Discovering Kasa smart plugs...")
-            devices = await Discover.discover()
+            try:
+                # Add timeout to discovery
+                devices = await asyncio.wait_for(Discover.discover(), timeout=10.0)
+                logger.info(f"Discovered {len(devices)} device(s) total")
+            except asyncio.TimeoutError:
+                logger.error("Device discovery timed out after 10 seconds")
+                return
+            except Exception as e:
+                logger.error(f"Discovery failed: {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
+                return
 
             for addr, dev in devices.items():
-                if isinstance(dev, SmartPlug):
-                    # Use device alias/name you set in Kasa app
-                    device_id = dev.alias.lower().replace(" ", "_")
-                    # "Record Player" → "record_player"
-                    # "Lamp" → "lamp"
+                try:
+                    logger.info(f"Processing device: {addr}, type: {type(dev).__name__}, alias: {getattr(dev, 'alias', None)}")
+                    
+                    # Check if device has plug capabilities (can turn on/off)
+                    has_turn_on = hasattr(dev, 'turn_on')
+                    has_turn_off = hasattr(dev, 'turn_off')
+                    logger.info(f"  Device {addr} - has turn_on: {has_turn_on}, has turn_off: {has_turn_off}")
+                    
+                    if not has_turn_on or not has_turn_off:
+                        logger.info(f"  Skipping device {addr} - doesn't have plug capabilities")
+                        continue
 
-                    self._plugs[device_id] = dev
+                    # Use the discovered device directly if it has plug capabilities
+                    # No need to reconnect - the device is already discovered and connected
+                    plug = dev
+                    
+                    # Try to update device info to get alias/model, but don't fail if it errors
+                    alias = None
+                    model = None
+                    try:
+                        await plug.update()
+                        alias = plug.alias
+                        model = getattr(plug, 'model', None)
+                        logger.info(f"  Updated device {addr} - alias: {alias}, model: {model}")
+                    except Exception as e:
+                        logger.warning(f"Failed to update device {addr} (will use fallback name): {e}")
+                        # Try to get model/alias without update
+                        alias = getattr(plug, 'alias', None)
+                        model = getattr(plug, 'model', None)
+
+                    # Use device alias/name you set in Kasa app, or model name as fallback
+                    if not alias:
+                        alias = model or f"device_{addr.replace('.', '_')}"
+                    # Normalize: lowercase, remove hyphens/spaces, convert spaces to underscores
+                    device_id = alias.lower().replace("-", "").replace(" ", "_")
+                    # "Record Player" → "record_player"
+                    # "KP125M" → "kp125m"
+                    # "KP-125M" → "kp125m"
+                    # "device_10_0_0_95" → "device_10_0_0_95"
+
+                    self._plugs[device_id] = plug
                     logger.info(
-                        f"Found smart plug: {dev.alias} ({addr}) → {device_id}"
+                        f"✅ Found smart plug: {alias} ({addr}) → {device_id}"
                     )
+                except Exception as e:
+                    logger.error(f"Error processing device {addr}: {e}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
+                    continue
 
             if not self._plugs:
                 logger.warning("No Kasa smart plugs found on network")
@@ -63,11 +113,14 @@ class SmartPlugController:
                 logger.info(f"Discovered {len(self._plugs)} smart plug(s)")
 
         except ImportError:
-            logger.warning("python-kasa not available, falling back to mock mode")
-            self._mock_mode = True
+            logger.error("python-kasa not available - cannot control smart plugs")
+            logger.error("Install with: pip install python-kasa")
+            # Don't change mock_mode - let it fail explicitly if hardware is expected
         except Exception as e:
             logger.error(f"Failed to discover smart plugs: {e}")
-            self._mock_mode = True
+            import traceback
+            logger.debug(traceback.format_exc())
+            # Don't change mock_mode - discovery failure doesn't mean we should mock
 
     async def register_device(self, device_id: str, ip_address: str) -> bool:
         """

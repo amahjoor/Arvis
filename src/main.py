@@ -278,8 +278,9 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python -m src.main                    # Run with defaults
-    python -m src.main --mock-hardware    # Run with mocked hardware
+    python -m src.main                    # Run with defaults (from .env)
+    python -m src.main --no-mock-hardware # Use real hardware (disable mock mode)
+    python -m src.main --mock-hardware    # Force mock mode
     python -m src.main --debug            # Run with debug logging
         """
     )
@@ -287,8 +288,14 @@ Examples:
     parser.add_argument(
         "--mock-hardware",
         action="store_true",
-        default=MOCK_HARDWARE,
-        help="Use mock implementations for hardware (default: from env)"
+        default=None,
+        help="Use mock implementations for hardware (overrides env)"
+    )
+    
+    parser.add_argument(
+        "--no-mock-hardware",
+        action="store_true",
+        help="Disable mock mode, use real hardware (overrides env)"
     )
     
     parser.add_argument(
@@ -308,8 +315,16 @@ async def main() -> None:
     # Setup logging first
     setup_logging()
     
+    # Determine mock mode: CLI flags override env/config
+    if args.no_mock_hardware:
+        mock_hardware = False
+    elif args.mock_hardware:
+        mock_hardware = True
+    else:
+        mock_hardware = MOCK_HARDWARE  # Use env/config default
+    
     # Create Arvis instance
-    arvis = Arvis(mock_hardware=args.mock_hardware, debug=args.debug)
+    arvis = Arvis(mock_hardware=mock_hardware, debug=args.debug)
     
     # Setup signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
