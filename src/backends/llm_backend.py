@@ -30,9 +30,12 @@ Return a JSON object with:
 Known actions:
 - lights.on, lights.off
 - lights.scene (params: scene = "focus" | "night" | "wake")
-- device.on (params: device = "record_player" | "lamp" | "fan" | ...)
-- device.off (params: device = "record_player" | "lamp" | "fan" | ...)
+- device.on (params: device = "record_player" | "lamp" | "fan" | ... OR devices = ["device1", "device2"] for multiple devices)
+- device.off (params: device = "record_player" | "lamp" | "fan" | ... OR devices = ["device1", "device2"] for multiple devices)
 - device.status (params: device = "record_player" | ...)
+
+For multiple devices (e.g., "turn off light and air purifier"), use devices array:
+{{"action": "device.off", "params": {{"devices": ["light", "air_purifier"]}}}}
 - timer.set (params: minutes)
 - alarm.set (params: time in HH:MM)
 - alarm.stop
@@ -41,6 +44,12 @@ Known actions:
 - chat.response (params: message = "Yes, I can hear you." | "I'm here." | etc.) - Use this for conversational queries like "Can you hear me?", "Are you there?", greetings, or casual questions
 
 For conversational queries (greetings, status checks, casual questions), use chat.response with a brief, natural response.
+
+For multiple devices in one command (e.g., "turn off light and air purifier", "turn on lamp and fan"):
+- Extract all device names mentioned
+- Use the "devices" array parameter (not "device")
+- Common device names: "light", "air_purifier", etc.
+- Example: "turn off light and air purifier" → {{"action": "device.off", "params": {{"devices": ["light", "air_purifier"]}}}}
 
 If you cannot understand the command, return:
 {{"action": "clarify", "params": {{"message": "I didn't catch that."}}}}

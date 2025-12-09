@@ -25,8 +25,19 @@ def register_light_handlers(router: IntentRouter) -> None:
         """Handle 'lights on' command."""
         logger.info("Handling lights.on intent")
         
-        # Turn on lights
+        # Turn on LED strip
         ctx.led_controller.set_on()
+        
+        # Also turn on smart plug "light" if it exists
+        if hasattr(ctx, 'smart_plug_controller') and ctx.smart_plug_controller:
+            try:
+                success = await ctx.smart_plug_controller.turn_on("light")
+                if success:
+                    logger.info("Also turned on smart plug 'light'")
+                else:
+                    logger.debug("Smart plug 'light' not found or failed to turn on")
+            except Exception as e:
+                logger.debug(f"Error controlling smart plug 'light': {e}")
         
         # Voice confirmation
         await _say(ctx, "Lights on.")
@@ -36,8 +47,19 @@ def register_light_handlers(router: IntentRouter) -> None:
         """Handle 'lights off' command."""
         logger.info("Handling lights.off intent")
         
-        # Turn off lights
+        # Turn off LED strip
         ctx.led_controller.set_off()
+        
+        # Also turn off smart plug "light" if it exists
+        if hasattr(ctx, 'smart_plug_controller') and ctx.smart_plug_controller:
+            try:
+                success = await ctx.smart_plug_controller.turn_off("light")
+                if success:
+                    logger.info("Also turned off smart plug 'light'")
+                else:
+                    logger.debug("Smart plug 'light' not found or failed to turn off")
+            except Exception as e:
+                logger.debug(f"Error controlling smart plug 'light': {e}")
         
         # Voice confirmation
         await _say(ctx, "Lights off.")

@@ -98,6 +98,23 @@ LED_BRIGHTNESS = 255  # Max brightness (0-255)
 LED_FREQ_HZ = 800000  # LED signal frequency
 
 # =============================================================================
+# Smart Plug Device Mapping
+# =============================================================================
+# Map device IP addresses or MAC addresses to friendly names
+# Format: "ip_address": "friendly_name" or "mac_address": "friendly_name"
+# If a device isn't in this map, it will use its Kasa app alias or model name
+# If multiple devices have the same name, they'll be numbered (e.g., "kp125m_1", "kp125m_2")
+DEVICE_NAME_MAP = {
+    # Example mappings (update with your actual device IPs):
+    # "10.0.0.95": "light",
+    # "10.0.0.93": "air_purifier",
+    # Or use MAC addresses:
+    # "AA:BB:CC:DD:EE:FF": "record_player",
+    "10.0.0.95": "air_purifier",  # Swapped - this IP is actually the air purifier
+    "10.0.0.93": "light",         # Swapped - this IP is actually the light
+}
+
+# =============================================================================
 # LLM / AI Settings
 # =============================================================================
 LLM_MODEL = "gpt-4o-mini"

@@ -8,7 +8,7 @@ import asyncio
 from typing import Dict, Optional, Any
 from loguru import logger
 
-from src.config import MOCK_HARDWARE
+from src.config import MOCK_HARDWARE, DEVICE_NAME_MAP
 
 
 class SmartPlugController:
@@ -28,10 +28,13 @@ class SmartPlugController:
         """
         self._mock_mode = mock_mode
         self._plugs: Dict[str, Any] = {}  # device_id -> plug instance
+        self._device_ips: Dict[str, str] = {}  # device_id -> IP address (for reconnection)
+        self._discovery_complete = asyncio.Event()  # Signal when discovery is done
+        self._discovery_task: Optional[asyncio.Task] = None
 
         if not mock_mode:
             # Discover plugs asynchronously on init
-            asyncio.create_task(self._discover_plugs())
+            self._discovery_task = asyncio.create_task(self._discover_plugs())
 
         logger.info(
             f"SmartPlugController initialized (mock_mode={mock_mode})"
@@ -49,13 +52,20 @@ class SmartPlugController:
                 logger.info(f"Discovered {len(devices)} device(s) total")
             except asyncio.TimeoutError:
                 logger.error("Device discovery timed out after 10 seconds")
+                self._discovery_complete.set()  # Signal completion even on timeout
                 return
             except Exception as e:
                 logger.error(f"Discovery failed: {e}")
                 import traceback
                 logger.debug(traceback.format_exc())
+                self._discovery_complete.set()  # Signal completion even on error
                 return
 
+            # Track device names to handle duplicates
+            device_name_counts: Dict[str, int] = {}
+            discovered_devices: list[tuple[str, Any, str, str]] = []  # (device_id, plug, display_name, ip_address)
+            
+            # First pass: collect all devices and determine their names
             for addr, dev in devices.items():
                 try:
                     logger.info(f"Processing device: {addr}, type: {type(dev).__name__}, alias: {getattr(dev, 'alias', None)}")
@@ -69,58 +79,89 @@ class SmartPlugController:
                         logger.info(f"  Skipping device {addr} - doesn't have plug capabilities")
                         continue
 
-                    # Use the discovered device directly if it has plug capabilities
-                    # No need to reconnect - the device is already discovered and connected
                     plug = dev
                     
                     # Try to update device info to get alias/model, but don't fail if it errors
                     alias = None
                     model = None
+                    mac = None
                     try:
                         await plug.update()
                         alias = plug.alias
                         model = getattr(plug, 'model', None)
-                        logger.info(f"  Updated device {addr} - alias: {alias}, model: {model}")
+                        mac = getattr(plug, 'mac', None)
+                        logger.info(f"  Updated device {addr} - alias: {alias}, model: {model}, mac: {mac}")
                     except Exception as e:
                         logger.warning(f"Failed to update device {addr} (will use fallback name): {e}")
-                        # Try to get model/alias without update
                         alias = getattr(plug, 'alias', None)
                         model = getattr(plug, 'model', None)
+                        mac = getattr(plug, 'mac', None)
 
-                    # Use device alias/name you set in Kasa app, or model name as fallback
-                    if not alias:
-                        alias = model or f"device_{addr.replace('.', '_')}"
+                    # Check for configured friendly name (by IP or MAC)
+                    friendly_name = None
+                    if addr in DEVICE_NAME_MAP:
+                        friendly_name = DEVICE_NAME_MAP[addr]
+                        logger.info(f"  Using configured name from IP: {friendly_name}")
+                    elif mac and mac in DEVICE_NAME_MAP:
+                        friendly_name = DEVICE_NAME_MAP[mac]
+                        logger.info(f"  Using configured name from MAC: {friendly_name}")
+                    
+                    # Use friendly name, Kasa app alias, or model name as fallback
+                    if friendly_name:
+                        base_name = friendly_name
+                    elif alias:
+                        base_name = alias
+                    else:
+                        base_name = model or f"device_{addr.replace('.', '_')}"
+                    
                     # Normalize: lowercase, remove hyphens/spaces, convert spaces to underscores
-                    device_id = alias.lower().replace("-", "").replace(" ", "_")
-                    # "Record Player" → "record_player"
-                    # "KP125M" → "kp125m"
-                    # "KP-125M" → "kp125m"
-                    # "device_10_0_0_95" → "device_10_0_0_95"
-
-                    self._plugs[device_id] = plug
-                    logger.info(
-                        f"✅ Found smart plug: {alias} ({addr}) → {device_id}"
-                    )
+                    base_device_id = base_name.lower().replace("-", "").replace(" ", "_")
+                    
+                    # Track this base name
+                    device_name_counts[base_device_id] = device_name_counts.get(base_device_id, 0) + 1
+                    
+                    display_name = friendly_name or alias or model or base_device_id
+                    discovered_devices.append((base_device_id, plug, display_name, addr))
+                    
                 except Exception as e:
                     logger.error(f"Error processing device {addr}: {e}")
                     import traceback
                     logger.debug(traceback.format_exc())
                     continue
+            
+            # Second pass: assign final device IDs, handling duplicates
+            seen_base_names: Dict[str, int] = {}
+            for base_device_id, plug, display_name, addr in discovered_devices:
+                # If we have duplicates of this name, number them
+                if device_name_counts[base_device_id] > 1:
+                    # Count how many of this base name we've seen so far
+                    seen_count = seen_base_names.get(base_device_id, 0) + 1
+                    seen_base_names[base_device_id] = seen_count
+                    device_id = f"{base_device_id}_{seen_count}"
+                else:
+                    device_id = base_device_id
+                
+                self._plugs[device_id] = plug
+                self._device_ips[device_id] = addr  # Store IP for reconnection
+                logger.info(f"✅ Found smart plug: {display_name} ({addr}) → {device_id}")
 
             if not self._plugs:
                 logger.warning("No Kasa smart plugs found on network")
             else:
                 logger.info(f"Discovered {len(self._plugs)} smart plug(s)")
+            
+            # Signal that discovery is complete
+            self._discovery_complete.set()
 
         except ImportError:
             logger.error("python-kasa not available - cannot control smart plugs")
             logger.error("Install with: pip install python-kasa")
-            # Don't change mock_mode - let it fail explicitly if hardware is expected
+            self._discovery_complete.set()  # Signal completion even on error
         except Exception as e:
             logger.error(f"Failed to discover smart plugs: {e}")
             import traceback
             logger.debug(traceback.format_exc())
-            # Don't change mock_mode - discovery failure doesn't mean we should mock
+            self._discovery_complete.set()  # Signal completion even on error
 
     async def register_device(self, device_id: str, ip_address: str) -> bool:
         """
@@ -146,6 +187,7 @@ class SmartPlugController:
             await plug.update()  # Get device info
 
             self._plugs[device_id] = plug
+            self._device_ips[device_id] = ip_address  # Store IP for reconnection
             logger.info(f"Registered smart plug: {device_id} @ {ip_address} ({plug.alias})")
             return True
         except Exception as e:
@@ -166,17 +208,100 @@ class SmartPlugController:
             logger.info(f"🔌 [MOCK] Turn ON: {device_id}")
             return True
 
-        plug = self._plugs.get(device_id)
-        if plug is None:
+        # Wait for discovery to complete (with timeout)
+        if not self._discovery_complete.is_set():
+            logger.info(f"Waiting for device discovery to complete...")
+            try:
+                await asyncio.wait_for(self._discovery_complete.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("Device discovery timed out, proceeding anyway")
+
+        device_ip = self._device_ips.get(device_id)
+        if device_ip is None:
             logger.error(f"Smart plug not found: {device_id}. Available: {list(self._plugs.keys())}")
             return False
 
         try:
-            await plug.turn_on()
-            logger.info(f"🔌 Turned ON: {device_id}")
-            return True
+            # Get device info for logging
+            device_model = 'Unknown'
+            try:
+                old_plug = self._plugs.get(device_id)
+                if old_plug:
+                    device_model = getattr(old_plug, 'model', 'Unknown')
+            except:
+                pass
+            
+            logger.info(f"  Controlling device: {device_id} @ {device_ip} ({device_model})")
+            
+            # Try using discovered device first (it connects via UDP discovery)
+            plug = self._plugs.get(device_id)
+            if plug:
+                try:
+                    logger.info(f"  Using discovered device object for {device_id}")
+                    await asyncio.wait_for(plug.update(), timeout=5.0)
+                    logger.info(f"  Connected to device {device_id} @ {device_ip}")
+                    fresh_plug = plug
+                except Exception as e:
+                    logger.warning(f"  Discovered device failed: {e}, trying SmartPlug connection")
+                    plug = None
+            
+            # If discovered device doesn't work, try creating SmartPlug connection
+            if not plug:
+                logger.info(f"  Creating SmartPlug connection to {device_id} @ {device_ip}")
+                from kasa import SmartPlug
+                fresh_plug = SmartPlug(device_ip)
+                
+                try:
+                    await asyncio.wait_for(fresh_plug.update(), timeout=5.0)
+                    logger.info(f"  Connected to device {device_id} @ {device_ip}")
+                except asyncio.TimeoutError:
+                    logger.error(f"  Connection to {device_id} @ {device_ip} timed out")
+                    logger.error(f"  This usually means the device is unreachable or on a different network")
+                    return False
+                except Exception as conn_error:
+                    logger.error(f"  Failed to connect to {device_id} @ {device_ip}: {conn_error}")
+                    logger.error(f"  Make sure the device is on the same network and port 9999 is not blocked")
+                    return False
+            
+            # Get current state before turning on
+            was_on = fresh_plug.is_on
+            logger.info(f"  Device {device_id} current state: {'ON' if was_on else 'OFF'}")
+            
+            # Turn on the device
+            logger.info(f"  Sending turn_on() command to {device_id}...")
+            try:
+                await fresh_plug.turn_on()
+                logger.info(f"  turn_on() command completed")
+            except Exception as cmd_error:
+                logger.error(f"  Failed to execute turn_on() command: {cmd_error}")
+                return False
+            
+            # Verify the device actually turned on
+            await asyncio.sleep(1.5)  # Give device more time to respond
+            try:
+                await fresh_plug.update()
+                is_now_on = fresh_plug.is_on
+                logger.info(f"  Device {device_id} state after command: {'ON' if is_now_on else 'OFF'}")
+            except Exception as verify_error:
+                logger.error(f"  Failed to verify state: {verify_error}")
+                is_now_on = None
+            
+            # Update the stored plug reference
+            self._plugs[device_id] = fresh_plug
+            
+            if is_now_on:
+                logger.info(f"🔌 Turned ON: {device_id} (verified: was {'ON' if was_on else 'OFF'} → now ON)")
+                return True
+            else:
+                logger.warning(f"⚠️ Turn ON command sent to {device_id}, but device is still OFF (was {'ON' if was_on else 'OFF'})")
+                logger.warning(f"  Device IP: {device_ip}, Model: {device_model}")
+                logger.warning(f"  This might indicate a network issue or device unresponsiveness")
+                return False
         except Exception as e:
             logger.error(f"Failed to turn on {device_id}: {e}")
+            logger.error(f"  Device IP: {device_ip if 'device_ip' in locals() else 'Unknown'}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return False
 
     async def turn_off(self, device_id: str) -> bool:
@@ -185,17 +310,100 @@ class SmartPlugController:
             logger.info(f"🔌 [MOCK] Turn OFF: {device_id}")
             return True
 
-        plug = self._plugs.get(device_id)
-        if plug is None:
+        # Wait for discovery to complete (with timeout)
+        if not self._discovery_complete.is_set():
+            logger.info(f"Waiting for device discovery to complete...")
+            try:
+                await asyncio.wait_for(self._discovery_complete.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("Device discovery timed out, proceeding anyway")
+
+        device_ip = self._device_ips.get(device_id)
+        if device_ip is None:
             logger.error(f"Smart plug not found: {device_id}. Available: {list(self._plugs.keys())}")
             return False
 
         try:
-            await plug.turn_off()
-            logger.info(f"🔌 Turned OFF: {device_id}")
-            return True
+            # Get device info for logging
+            device_model = 'Unknown'
+            try:
+                old_plug = self._plugs.get(device_id)
+                if old_plug:
+                    device_model = getattr(old_plug, 'model', 'Unknown')
+            except:
+                pass
+            
+            logger.info(f"  Controlling device: {device_id} @ {device_ip} ({device_model})")
+            
+            # Try using discovered device first (it connects via UDP discovery)
+            plug = self._plugs.get(device_id)
+            if plug:
+                try:
+                    logger.info(f"  Using discovered device object for {device_id}")
+                    await asyncio.wait_for(plug.update(), timeout=5.0)
+                    logger.info(f"  Connected to device {device_id} @ {device_ip}")
+                    fresh_plug = plug
+                except Exception as e:
+                    logger.warning(f"  Discovered device failed: {e}, trying SmartPlug connection")
+                    plug = None
+            
+            # If discovered device doesn't work, try creating SmartPlug connection
+            if not plug:
+                logger.info(f"  Creating SmartPlug connection to {device_id} @ {device_ip}")
+                from kasa import SmartPlug
+                fresh_plug = SmartPlug(device_ip)
+                
+                try:
+                    await asyncio.wait_for(fresh_plug.update(), timeout=5.0)
+                    logger.info(f"  Connected to device {device_id} @ {device_ip}")
+                except asyncio.TimeoutError:
+                    logger.error(f"  Connection to {device_id} @ {device_ip} timed out")
+                    logger.error(f"  This usually means the device is unreachable or on a different network")
+                    return False
+                except Exception as conn_error:
+                    logger.error(f"  Failed to connect to {device_id} @ {device_ip}: {conn_error}")
+                    logger.error(f"  Make sure the device is on the same network and port 9999 is not blocked")
+                    return False
+            
+            # Get current state before turning off
+            was_on = fresh_plug.is_on
+            logger.info(f"  Device {device_id} current state: {'ON' if was_on else 'OFF'}")
+            
+            # Turn off the device
+            logger.info(f"  Sending turn_off() command to {device_id}...")
+            try:
+                await fresh_plug.turn_off()
+                logger.info(f"  turn_off() command completed")
+            except Exception as cmd_error:
+                logger.error(f"  Failed to execute turn_off() command: {cmd_error}")
+                return False
+            
+            # Verify the device actually turned off
+            await asyncio.sleep(1.5)  # Give device more time to respond
+            try:
+                await fresh_plug.update()
+                is_now_on = fresh_plug.is_on
+                logger.info(f"  Device {device_id} state after command: {'ON' if is_now_on else 'OFF'}")
+            except Exception as verify_error:
+                logger.error(f"  Failed to verify state: {verify_error}")
+                is_now_on = None
+            
+            # Update the stored plug reference
+            self._plugs[device_id] = fresh_plug
+            
+            if not is_now_on:
+                logger.info(f"🔌 Turned OFF: {device_id} (verified: was {'ON' if was_on else 'OFF'} → now OFF)")
+                return True
+            else:
+                logger.warning(f"⚠️ Turn OFF command sent to {device_id}, but device is still ON (was {'ON' if was_on else 'OFF'})")
+                logger.warning(f"  Device IP: {device_ip}, Model: {device_model}")
+                logger.warning(f"  This might indicate a network issue or device unresponsiveness")
+                return False
         except Exception as e:
             logger.error(f"Failed to turn off {device_id}: {e}")
+            logger.error(f"  Device IP: {device_ip if 'device_ip' in locals() else 'Unknown'}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return False
 
     async def is_on(self, device_id: str) -> Optional[bool]:

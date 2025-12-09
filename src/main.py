@@ -344,5 +344,10 @@ async def main() -> None:
         sys.exit(1)
 
 
-if __name__ == "__main__":
+def cli_main():
+    """CLI entry point for console_scripts."""
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli_main()

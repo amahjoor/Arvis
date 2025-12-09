@@ -1,0 +1,28 @@
+#!/bin/bash
+# Arvis command wrapper - automatically activates venv and runs Arvis
+
+# Resolve the actual script location (handles symlinks)
+if [ -L "$0" ]; then
+    # If symlinked, resolve to the actual file
+    SCRIPT_FILE=$(readlink "$0")
+    if [[ "$SCRIPT_FILE" != /* ]]; then
+        # Relative symlink - resolve from symlink's directory
+        SCRIPT_FILE="$(dirname "$0")/$SCRIPT_FILE"
+    fi
+    ARVIS_DIR=$(cd "$(dirname "$SCRIPT_FILE")" && pwd)
+else
+    # Not symlinked - use normal method
+    ARVIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
+
+# Activate the virtual environment
+if [ -f "$ARVIS_DIR/.venv/bin/activate" ]; then
+    source "$ARVIS_DIR/.venv/bin/activate"
+else
+    echo "Error: Could not find virtual environment at $ARVIS_DIR/.venv/bin/activate" >&2
+    exit 1
+fi
+
+# Change to Arvis directory and run
+cd "$ARVIS_DIR" || exit 1
+exec python -m src.main "$@"
