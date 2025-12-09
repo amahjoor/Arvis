@@ -154,6 +154,21 @@ SCENES = {
 }
 
 # =============================================================================
+# Smart Plug Configuration
+# =============================================================================
+# Devices will auto-discover, but you can manually register by IP if needed
+SMART_PLUG_DEVICES = {
+    # "record_player": {
+    #     "ip": "192.168.1.100",  # Optional: specify IP if auto-discovery fails
+    #     "alias": "Record Player",  # Friendly name in Kasa app
+    # },
+    # "lamp": {
+    #     "ip": "192.168.1.101",
+    #     "alias": "Lamp",
+    # },
+}
+
+# =============================================================================
 # Error Messages (Arvis persona - minimal, calm)
 # =============================================================================
 ERROR_MESSAGES = {

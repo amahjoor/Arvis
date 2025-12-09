@@ -21,9 +21,12 @@ from src.agents.wake_word import WakeWordDetector
 from src.agents.voice_agent import VoiceAgent
 from src.agents.presence_agent import PresenceAgent
 from src.controllers.led_controller import LEDController
+from src.controllers.smart_plug_controller import SmartPlugController
 from src.sensors.pir_sensor import PIRSensor
 from src.intents.lights import register_light_handlers
 from src.intents.presence import register_presence_handlers
+from src.intents.devices import register_device_handlers
+from src.intents.chat import register_chat_handlers
 from src.utils.logging import setup_logging
 
 
@@ -53,6 +56,7 @@ class Arvis:
         
         # Controllers
         self.led_controller = LEDController(mock_mode=mock_hardware)
+        self.smart_plug_controller = SmartPlugController(mock_mode=mock_hardware)
         
         # Sensors
         self.pir_sensor = PIRSensor(
@@ -81,6 +85,7 @@ class Arvis:
             audio_controller=self.voice_agent.audio_controller,
             state_manager=self.state_manager,
             event_bus=self.event_bus,
+            smart_plug_controller=self.smart_plug_controller,
         )
         self.intent_router = IntentRouter(
             event_bus=self.event_bus,
@@ -90,6 +95,8 @@ class Arvis:
         # Register intent handlers
         register_light_handlers(self.intent_router)
         register_presence_handlers(self.intent_router)
+        register_device_handlers(self.intent_router)
+        register_chat_handlers(self.intent_router)
         
         logger.info(f"Arvis initialized (mock_hardware={mock_hardware}, debug={debug})")
     

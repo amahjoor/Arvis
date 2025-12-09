@@ -137,6 +137,8 @@ graph TB
 | **LED Control** | rpi_ws281x | 5.0+ | WS2812B LEDs | Direct Pi control |
 | **LED Strip** | LOAMLIN WS2812B | 5m/300LED | 60 LED/m, IP30, 5V | [Amazon](https://www.amazon.com/dp/B09573HX4X) |
 | **LED Power** | 5V 10A PSU | — | Powers LED strip | Required, not included with strip |
+| **Smart Plug Control** | python-kasa | 0.5+ | Kasa device control | Local network API |
+| **Smart Desk Control** | requests/paho-mqtt | — | Standing desk automation | HTTP/MQTT APIs |
 | **Config** | python-dotenv | 1.0+ | Environment vars | Simple, secure |
 | **Logging** | loguru | 0.7+ | Structured logging | Beautiful, easy |
 | **Scheduling** | schedule | 1.2+ | Timers, alarms | Lightweight |
@@ -202,6 +204,14 @@ class Intent:
 | `lights.off` | `{}` | Turn lights off |
 | `lights.scene` | `{scene: str}` | `{scene: "focus"}` |
 | `lights.animate` | `{animation: str, duration: float}` | `{animation: "golden_shimmer"}` |
+| `device.on` | `{device: str}` | `{device: "record_player"}` |
+| `device.off` | `{device: str}` | `{device: "record_player"}` |
+| `device.status` | `{device: str}` | `{device: "record_player"}` |
+| `desk.move_up` | `{distance: float}` | `{distance: 5.0}` |
+| `desk.move_down` | `{distance: float}` | `{distance: 5.0}` |
+| `desk.set_height` | `{height: float}` | `{height: 120.0}` |
+| `desk.set_preset` | `{preset: str}` | `{preset: "standing"}` |
+| `desk.get_height` | `{}` | Current height query |
 | `audio.say` | `{text: str}` | `{text: "Welcome back, Arman"}` |
 | `room.set_state` | `{state: RoomState}` | `{state: "sleep"}` |
 | `alarm.start` | `{alarm_id: str}` | Start alarm |
@@ -333,6 +343,13 @@ graph LR
 - **Responsibility:** Play TTS and sound effects
 - **Key Interfaces:** `say(text)`, `play_sound(sound_id)`
 - **Dependencies:** TTSBackend, pygame.mixer
+
+#### **SmartPlugController**
+- **Responsibility:** Control TP-Link Kasa smart plugs via local network
+- **Key Interfaces:** `turn_on(device_id)`, `turn_off(device_id)`, `is_on(device_id)`, `get_energy_usage(device_id)`
+- **Dependencies:** python-kasa library
+- **Discovery:** Auto-discovers Kasa devices on network startup via UDP broadcast
+- **Device Mapping:** Normalizes Kasa app aliases to device IDs (e.g., "Record Player" → "record_player")
 
 #### **STTBackend**
 - **Responsibility:** Transcribe audio to text
@@ -524,11 +541,13 @@ arvis/
 │   │   ├── __init__.py
 │   │   ├── led_controller.py      # WS2812B control
 │   │   ├── audio_controller.py    # TTS playback, sound FX
+│   │   ├── smart_plug_controller.py  # Kasa smart plug control
 │   │   └── animations.py          # LED animation definitions
 │   │
 │   ├── intents/
 │   │   ├── __init__.py
 │   │   ├── lights.py              # Light-related intent handlers
+│   │   ├── devices.py              # Smart plug device intent handlers
 │   │   ├── audio.py               # Audio intent handlers
 │   │   ├── room.py                # Room state handlers
 │   │   ├── alarm.py               # Alarm handlers

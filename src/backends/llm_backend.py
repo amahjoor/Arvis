@@ -24,17 +24,23 @@ Current room state: {state}
 Current time: {time}
 
 Return a JSON object with:
-- action: the intent action (e.g., "lights.on", "lights.scene", "timer.set")
+- action: the intent action (e.g., "lights.on", "lights.scene", "timer.set", "chat.response")
 - params: action-specific parameters
 
 Known actions:
 - lights.on, lights.off
 - lights.scene (params: scene = "focus" | "night" | "wake")
+- device.on (params: device = "record_player" | "lamp" | "fan" | ...)
+- device.off (params: device = "record_player" | "lamp" | "fan" | ...)
+- device.status (params: device = "record_player" | ...)
 - timer.set (params: minutes)
 - alarm.set (params: time in HH:MM)
 - alarm.stop
 - status.get
 - room.cancel_sleep (when user says "I'm still awake")
+- chat.response (params: message = "Yes, I can hear you." | "I'm here." | etc.) - Use this for conversational queries like "Can you hear me?", "Are you there?", greetings, or casual questions
+
+For conversational queries (greetings, status checks, casual questions), use chat.response with a brief, natural response.
 
 If you cannot understand the command, return:
 {{"action": "clarify", "params": {{"message": "I didn't catch that."}}}}
@@ -92,7 +98,7 @@ class LLMBackend:
         
         # Simple keyword matching for mock mode
         text_lower = text.lower()
-        
+
         if "light" in text_lower and "on" in text_lower:
             return Intent(action="lights.on", params={}, raw_text=text)
         elif "light" in text_lower and "off" in text_lower:
@@ -101,14 +107,47 @@ class LLMBackend:
             return Intent(action="lights.scene", params={"scene": "focus"}, raw_text=text)
         elif "night" in text_lower:
             return Intent(action="lights.scene", params={"scene": "night"}, raw_text=text)
+        elif "turn on" in text_lower or "turn on the" in text_lower:
+            # Extract device name
+            device = None
+            if "record player" in text_lower:
+                device = "record_player"
+            elif "lamp" in text_lower:
+                device = "lamp"
+            elif "light" in text_lower:
+                device = "lamp"
+            if device:
+                return Intent(action="device.on", params={"device": device}, raw_text=text)
+        elif "turn off" in text_lower or "turn off the" in text_lower:
+            # Extract device name
+            device = None
+            if "record player" in text_lower:
+                device = "record_player"
+            elif "lamp" in text_lower:
+                device = "lamp"
+            elif "light" in text_lower:
+                device = "lamp"
+            if device:
+                return Intent(action="device.off", params={"device": device}, raw_text=text)
+        elif "is" in text_lower and ("on" in text_lower or "off" in text_lower):
+            # Extract device name
+            device = None
+            if "record player" in text_lower:
+                device = "record_player"
+            elif "lamp" in text_lower:
+                device = "lamp"
+            elif "light" in text_lower:
+                device = "lamp"
+            if device:
+                return Intent(action="device.status", params={"device": device}, raw_text=text)
         elif "timer" in text_lower:
             return Intent(action="timer.set", params={"minutes": 5}, raw_text=text)
         elif "status" in text_lower:
             return Intent(action="status.get", params={}, raw_text=text)
         else:
             return Intent(
-                action="clarify", 
-                params={"message": "I didn't catch that."}, 
+                action="clarify",
+                params={"message": "I didn't catch that."},
                 raw_text=text
             )
     

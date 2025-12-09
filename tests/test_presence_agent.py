@@ -216,3 +216,4 @@ async def test_full_entry_exit_cycle(presence_agent, event_bus, state_manager):
     
     await presence_agent.stop()
 
+

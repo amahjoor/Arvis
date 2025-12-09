@@ -85,9 +85,10 @@ The goal is to create a seamless, magical, always-on room assistant that reacts 
 
 **Goal**: Hands-free control, magical experience.
 
-* As a user, I can say “Arvis…” and issue commands.
+* As a user, I can say "Arvis…" and issue commands.
 * As a user, Arvis should respond through corner speakers.
 * As a user, Arvis should control lights, music, timers, scenes, etc.
+* As a user, I can control smart plugs with voice commands ("turn on the lamp", "turn on the record player").
 
 ### **Epic 4 — Lighting Control**
 
@@ -294,6 +295,7 @@ Arvis uses **always-listening** wake word detection for hands-free activation fr
 * Date awareness ("Happy Friday, Arman." / "Happy birthday.")
 * Quick status ("Arvis, status" → "Lights on. Night mode. 11:43 PM.")
 * Timer support ("Arvis, set a timer for 10 minutes")
+* Smart plug control ("Arvis, turn on the lamp" / "turn on the record player" / "turn off the lamp")
 * Quiet hours mode (no voice responses, lights only — for guests)
 * Gradual wake light (LED sunrise 10–15 min before alarm)
 
@@ -489,6 +491,7 @@ Triggered when: Scheduled alarm time reached.
 * Multi-room extensions
 * Local LLM fallback (llama.cpp)
 * Spotify API integration
+* Smart desk height control (standing desk automation)
 * Calendar/weather API integrations
 * RFID or NFC triggers
 
@@ -526,6 +529,16 @@ Triggered when: Scheduled alarm time reached.
   * **5V 10A Power Supply** — Required for LED strip (not included with strip)
     * Search: "5V 10A switching power supply" (~$12-15)
   * Optional: WLED-compatible controller for LEDs (future enhancement)
+* **Smart Plugs**
+
+  * **TP-Link Kasa Smart Plug KP125M** — Matter Compatible, Energy Monitoring (2-pack ~$23)
+    * Local network control via python-kasa library
+    * Energy monitoring for power usage tracking
+    * Matter compatible for future ecosystem integration
+    * **Primary use cases:**
+      * Lamp/light control (turn on/off room lighting)
+      * Record player control (turn on/off turntable)
+    * Can also control fans, heaters, or other appliances
 * **Mounting & Cable Management**
 
   * Wall/ceiling speaker brackets
@@ -600,6 +613,7 @@ Triggered when: Scheduled alarm time reached.
 * `intent_router.py` — merges events → intents → actions (with priority rules)
 * `actions.py` — concrete actions (lights, TTS, alarms)
 * `led_controller.py` — LED animations (golden shimmer, fades, scenes)
+* `smart_plug_controller.py` — Kasa smart plug control via python-kasa
 * `presence_agent.py` — PIR handling + room state
 * `vision_agent.py` — camera frame processing + posture/zone detection
 * `config.py` — paths, thresholds, API keys, room layout zones
@@ -624,6 +638,9 @@ Triggered when: Scheduled alarm time reached.
 * `lights.set_state` — {state: on|off}
 * `lights.set_scene` — {scene: focus|night|sleep|wake|entry|exit}
 * `lights.animate` — {animation: "golden_shimmer", duration: 2.5}
+* `device.on` — {device: "record_player" | "lamp" | "fan" | ...}
+* `device.off` — {device: "record_player" | "lamp" | "fan" | ...}
+* `device.status` — {device: "record_player" | ...}
 * `audio.say` — {text: "Welcome back, Arman", voice_id: optional}
 * `alarm.start` — {profile: "morning_default"}
 * `alarm.stop` — {}

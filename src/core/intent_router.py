@@ -21,6 +21,7 @@ class HandlerContext:
     audio_controller: Any  # AudioController
     state_manager: Any  # StateManager
     event_bus: EventBus
+    smart_plug_controller: Optional[Any] = None  # SmartPlugController
 
 
 # Type alias for intent handlers
